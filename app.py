@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import os
 import google.generativeai as genai
+import inspect
 
 app = Flask(__name__)
 
@@ -21,29 +22,38 @@ UPLOADED_FILE_MIME_TYPE = None
 def upload_pdf():
     global UPLOADED_FILE_URI, UPLOADED_FILE_MIME_TYPE
     try:
+        # Debug: Check if file exists and print current directory contents
+        print(f"Current directory: {os.getcwd()}")
+        print(f"Files in current directory: {os.listdir('.')}")
+        if os.path.exists("data"):
+            print(f"Files in data directory: {os.listdir('data')}")
+        else:
+            print("data directory not found")
+            
+        # Debug: Print function signature to see required parameters
+        print(f"Upload file function signature: {inspect.signature(genai.upload_file)}")
+        
         # Check if file exists
         if not os.path.exists(PDF_FILE_PATH):
             print(f"Error: PDF file not found at {PDF_FILE_PATH}")
             return
             
-        # Use the correct parameter name for file upload
+        # Read file data
         with open(PDF_FILE_PATH, "rb") as f:
             file_data = f.read()
-            # Try different parameter names based on API versions
-            try:
-                uploaded_file = genai.upload_file(file=file_data, mime_type="application/pdf")
-            except TypeError:
-                try:
-                    uploaded_file = genai.upload_file(data=file_data, mime_type="application/pdf")
-                except TypeError:
-                    # Fall back to content if both fail
-                    uploaded_file = genai.upload_file(content=file_data, mime_type="application/pdf")
-                    
+        
+        # Try upload with minimal parameters
+        try:
+            # Current API (as of April 2025) likely uses this format
+            uploaded_file = genai.upload_file(file_data, mime_type="application/pdf")
             UPLOADED_FILE_URI = uploaded_file.uri
             UPLOADED_FILE_MIME_TYPE = "application/pdf"
             print(f"File uploaded successfully on startup. URI: {UPLOADED_FILE_URI}")
+        except Exception as e:
+            print(f"Error during file upload attempt: {e}")
+            print("Skipping file upload for now. Service will run without PDF functionality.")
     except Exception as e:
-        print(f"Error uploading file on startup: {e}")
+        print(f"Error in upload_pdf function: {e}")
 
 # Replace before_first_request with an app setup function
 @app.before_request
@@ -63,36 +73,29 @@ def get_summary():
         return jsonify({"error": "Missing 'question' in the request body."}), 400
     question = data.get("question")
 
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    
-    # Create a list of contents for the model
-    contents = [
-        {
-            "role": "user",
-            "parts": [
-                {"file_data": {
-                    "mime_type": UPLOADED_FILE_MIME_TYPE,
-                    "file_uri": UPLOADED_FILE_URI
-                }},
-                {"text": question}
-            ]
-        }
-    ]
-    
-    # Set up the generation config
-    generation_config = {
-        "response_mime_type": "text/plain",
-        "system_instruction": "You are a friendly and supportive English tutor helping 9th grade students. Keep your answers short and simple."
-    }
-
-    output = ""
     try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Create a list of contents for the model
+        contents = [
+            {
+                "role": "user",
+                "parts": [
+                    {"file_data": {
+                        "mime_type": UPLOADED_FILE_MIME_TYPE,
+                        "file_uri": UPLOADED_FILE_URI
+                    }},
+                    {"text": question}
+                ]
+            }
+        ]
+        
         response = model.generate_content(
             contents=contents,
-            generation_config=generation_config,
             stream=True
         )
         
+        output = ""
         for chunk in response:
             if hasattr(chunk, 'text'):
                 output += chunk.text
