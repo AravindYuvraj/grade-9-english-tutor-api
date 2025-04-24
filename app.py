@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import os
-from google import genai
-from google.genai import types
+from google.generativeai import genai
+from google.generativeai import types
 
 app = Flask(__name__)
 
