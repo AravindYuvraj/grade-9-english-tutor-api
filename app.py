@@ -12,7 +12,6 @@ if not GEMINI_API_KEY:
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Upload the file once when the application starts
 # Path to the PDF file within the Render instance
 PDF_FILE_PATH = "data/9th eng.pdf"
 
@@ -25,7 +24,7 @@ def upload_pdf():
     global UPLOADED_FILE_URI, UPLOADED_FILE_MIME_TYPE
     try:
         with open(PDF_FILE_PATH, "rb") as f:
-            uploaded_file = genai.client().files.upload(file_data=f.read(), mime_type="application/pdf")
+            uploaded_file = client.files.upload(file_data=f.read(), mime_type="application/pdf")
             UPLOADED_FILE_URI = uploaded_file.uri
             UPLOADED_FILE_MIME_TYPE = uploaded_file.mime_type
             print(f"File uploaded successfully on startup. URI: {UPLOADED_FILE_URI}")
@@ -34,15 +33,15 @@ def upload_pdf():
     except Exception as e:
         print(f"Error uploading file on startup: {e}")
 
-        
+
 @app.route("/summary", methods=["POST"])
 def get_summary():
-    if FILE_URI is None:
-        return jsonify({"error": "File upload failed during application startup."}), 500
+    if UPLOADED_FILE_URI is None:
+        return jsonify({"error": "File upload failed during application startup."}, 500)
 
     data = request.get_json()
     if not data or "question" not in data:
-        return jsonify({"error": "Missing 'question' in the request body."}), 400
+        return jsonify({"error": "Missing 'question' in the request body."}, 400)
     question = data.get("question")
 
     contents = [
@@ -50,10 +49,9 @@ def get_summary():
             role="user",
             parts=[
                 types.Part.from_uri(
-                    file_uri=FILE_URI,
-                    mime_type=FILE_MIME_TYPE,
+                    uri=UPLOADED_FILE_URI,
+                    mime_type=UPLOADED_FILE_MIME_TYPE,
                 ),
-                # Removed the unnecessary "hi"
             ],
         ),
         types.Content(
@@ -80,7 +78,7 @@ def get_summary():
             output += chunk.text
         return jsonify({"response": output})
     except Exception as e:
-        return jsonify({"error": f"Error generating summary: {e}"}), 500
+        return jsonify({"error": f"Error generating summary: {e}"}, 500)
 
 
 @app.route("/")
