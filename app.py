@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import os
-import google.generativeai as genai  # Correct import statement
+import google.generativeai as genai
 
 app = Flask(__name__)
 
@@ -9,7 +9,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable not set.")
 
-genai.configure(api_key=GEMINI_API_KEY)  # Configure the API key
+genai.configure(api_key=GEMINI_API_KEY)
 
 # Path to the PDF file within the Render instance
 PDF_FILE_PATH = "data/9th eng.pdf"
@@ -21,15 +21,27 @@ UPLOADED_FILE_MIME_TYPE = None
 def upload_pdf():
     global UPLOADED_FILE_URI, UPLOADED_FILE_MIME_TYPE
     try:
-        # Use the correct file upload method
+        # Check if file exists
+        if not os.path.exists(PDF_FILE_PATH):
+            print(f"Error: PDF file not found at {PDF_FILE_PATH}")
+            return
+            
+        # Use the correct parameter name for file upload
         with open(PDF_FILE_PATH, "rb") as f:
             file_data = f.read()
-            uploaded_file = genai.upload_file(data=file_data, mime_type="application/pdf")
+            # Try different parameter names based on API versions
+            try:
+                uploaded_file = genai.upload_file(file=file_data, mime_type="application/pdf")
+            except TypeError:
+                try:
+                    uploaded_file = genai.upload_file(data=file_data, mime_type="application/pdf")
+                except TypeError:
+                    # Fall back to content if both fail
+                    uploaded_file = genai.upload_file(content=file_data, mime_type="application/pdf")
+                    
             UPLOADED_FILE_URI = uploaded_file.uri
             UPLOADED_FILE_MIME_TYPE = "application/pdf"
             print(f"File uploaded successfully on startup. URI: {UPLOADED_FILE_URI}")
-    except FileNotFoundError:
-        print(f"Error: PDF file not found at {PDF_FILE_PATH}")
     except Exception as e:
         print(f"Error uploading file on startup: {e}")
 
