@@ -22,11 +22,11 @@ UPLOADED_FILE_MIME_TYPE = None
 def upload_pdf():
     global UPLOADED_FILE_URI, UPLOADED_FILE_MIME_TYPE
     try:
-        with open(PDF_FILE_PATH, "rb") as f:
-            uploaded_file = client.files.upload(file_data=f.read(), mime_type="application/pdf")
-            UPLOADED_FILE_URI = uploaded_file.uri
-            UPLOADED_FILE_MIME_TYPE = uploaded_file.mime_type
-            print(f"File uploaded successfully on startup. URI: {UPLOADED_FILE_URI}")
+        # Use the 'file' argument with the file path
+        uploaded_file = client.files.upload(file=PDF_FILE_PATH, mime_type="application/pdf")
+        UPLOADED_FILE_URI = uploaded_file.uri
+        UPLOADED_FILE_MIME_TYPE = uploaded_file.mime_type
+        print(f"File uploaded successfully on startup. URI: {UPLOADED_FILE_URI}")
     except FileNotFoundError:
         print(f"Error: PDF file not found at {PDF_FILE_PATH}")
     except Exception as e:
