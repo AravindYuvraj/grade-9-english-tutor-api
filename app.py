@@ -19,7 +19,6 @@ PDF_FILE_PATH = "data/9th eng.pdf"
 UPLOADED_FILE_URI = None
 UPLOADED_FILE_MIME_TYPE = None
 
-@app.before_first_request
 def upload_pdf():
     global UPLOADED_FILE_URI, UPLOADED_FILE_MIME_TYPE
     try:
@@ -32,6 +31,8 @@ def upload_pdf():
         print(f"Error: PDF file not found at {PDF_FILE_PATH}")
     except Exception as e:
         print(f"Error uploading file on startup: {e}")
+
+app.before_first_request(upload_pdf)
 
 
 @app.route("/summary", methods=["POST"])
