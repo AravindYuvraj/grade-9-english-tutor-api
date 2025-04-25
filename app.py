@@ -2,17 +2,28 @@ from flask import Flask, request, jsonify
 import os
 from google import genai
 from google.genai import types
+import traceback
 
 app = Flask(__name__)
 
-# Initialize Gemini
+# === Configure API key ===
 os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-# Upload file once at startup
-PDF_PATH = "AI_Studio/9th eng.pdf"
+# === Upload the file ===
+PDF_PATH = os.path.abspath("AI_Studio/9th eng.pdf")
+uploaded_file = None
 
-# In-memory chat storage (can be replaced with DB later)
+try:
+    print(f"🔍 Trying to upload: {PDF_PATH}")
+    uploaded_file = client.files.upload(file=PDF_PATH)
+    print(f"✅ File uploaded: {uploaded_file.uri}")
+except Exception as e:
+    traceback.print_exc()
+    print("❌ Failed to upload file.")
+    uploaded_file = None
+
+# === In-memory chat sessions ===
 chat_sessions = {}
 
 @app.route("/summary", methods=["POST"])
@@ -23,17 +34,14 @@ def get_summary():
 
     if not question:
         return jsonify({"error": "Missing question"}), 400
-    try:
-        uploaded_file = client.files.upload(file=PDF_PATH)
-    except Exception as e:
-        return jsonify({"error": f"File upload failed: {e}"}), 500
+    if uploaded_file is None:
+        return jsonify({"error": "PDF file not uploaded to Gemini"}), 500
 
-
-    # Initialize chat session if not exists
+    # Initialize chat history
     if session_id not in chat_sessions:
         chat_sessions[session_id] = []
 
-        # Start with file + intro message
+        # First message to Gemini
         chat_sessions[session_id].append(
             types.Content(
                 role="user",
@@ -55,7 +63,7 @@ def get_summary():
             )
         )
 
-    # Add the new user message
+    # Add the current question
     chat_sessions[session_id].append(
         types.Content(
             role="user",
@@ -63,9 +71,10 @@ def get_summary():
         )
     )
 
-    # Limit history to last 10 messages (5 turns)
+    # Trim chat history
     trimmed_history = chat_sessions[session_id][-10:]
 
+    # Configuration for response
     config = types.GenerateContentConfig(
         thinking_config=types.ThinkingConfig(thinking_budget=0),
         response_mime_type="text/plain",
@@ -74,6 +83,7 @@ def get_summary():
         ]
     )
 
+    # Generate the response
     response_text = ""
     try:
         for chunk in client.models.generate_content_stream(
@@ -83,9 +93,10 @@ def get_summary():
         ):
             response_text += chunk.text
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        traceback.print_exc()
+        return jsonify({"error": f"Gemini failed: {str(e)}"}), 500
 
-    # Save Gemini's reply into memory for next turn
+    # Save the response
     chat_sessions[session_id].append(
         types.Content(
             role="model",
@@ -99,6 +110,7 @@ def get_summary():
 @app.route("/")
 def home():
     return "✅ English Tutor API is running with chat memory and fast response."
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
