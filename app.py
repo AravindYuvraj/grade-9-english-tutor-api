@@ -11,7 +11,6 @@ client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 # Upload file once at startup
 PDF_PATH = "AI_Studio/9th eng.pdf"
-uploaded_file = client.files.upload(file=PDF_PATH)
 
 # In-memory chat storage (can be replaced with DB later)
 chat_sessions = {}
@@ -24,6 +23,11 @@ def get_summary():
 
     if not question:
         return jsonify({"error": "Missing question"}), 400
+    try:
+        uploaded_file = client.files.upload(file=PDF_PATH)
+    except Exception as e:
+        return jsonify({"error": f"File upload failed: {e}"}), 500
+
 
     # Initialize chat session if not exists
     if session_id not in chat_sessions:
